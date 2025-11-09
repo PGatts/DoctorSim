@@ -34,16 +34,13 @@ An interactive 8-bit style educational game where patients learn about healthcar
 
 1. **Clone and install:**
 ```bash
-git clone <repository-url>
+git clone https://github.com/PGatts/DoctorSim.git
 cd DoctorSim
 npm install
 ```
 
 2. **Set up environment variables:**
-```bash
-cp .env.example .env
-# Edit .env with your database credentials and API keys
-```
+- See section below
 
 3. **Set up the database:**
 ```bash
@@ -58,26 +55,6 @@ npm run dev
 ```
 
 5. **Open [http://localhost:3000](http://localhost:3000)**
-
-**Demo Logins:**
-
-Patient Account:
-- Email: `patient@example.com`
-- Password: `patient123`
-
-Admin Account:
-- Email: `admin@doctorsim.com`
-- Password: `admin123`
-
-### Admin Panel
-
-Admins have access to a comprehensive dashboard with user analytics, question management, and data export features.
-
-See [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) for detailed admin panel documentation.
-
-### Deployment
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed production deployment instructions.
 
 ## Project Structure
 
@@ -126,7 +103,7 @@ See `.env.example` for required environment variables:
 - `DATABASE_URL`: PostgreSQL connection string
 - `NEXTAUTH_SECRET`: Secret for NextAuth.js sessions
 - `OPENAI_API_KEY`: For AI-powered insights (optional - falls back to basic analysis)
-- `NEXTAUTH_URL`: Your app URL (e.g., https://your-app.vercel.app for production)
+- `NEXTAUTH_URL`: Your app URL (e.g., https://doctor-sim.vercel.app for production, http://localhost:3000 for development)
 - `GOOGLE_CLIENT_ID/SECRET`: Optional OAuth integration
 
 ### AI Insights Configuration
@@ -143,8 +120,6 @@ To enable AI insights:
 4. Redeploy your application after adding environment variables
 
 **Note**: The app works perfectly fine without an API key - it will automatically use basic statistical analysis instead.
-
-See [VERCEL_TROUBLESHOOTING.md](./VERCEL_TROUBLESHOOTING.md) for detailed troubleshooting steps if AI insights aren't working in production.
 
 ## Development
 
@@ -179,12 +154,6 @@ The app is designed to be deployed on Vercel:
 2. Add environment variables in Vercel dashboard
 3. Deploy!
 
-Database can be hosted on:
-- Vercel Postgres
-- Supabase
-- Railway
-- Any PostgreSQL provider
-
 ## Contributing
 
 Contributions are welcome! Please follow these steps:
@@ -194,10 +163,6 @@ Contributions are welcome! Please follow these steps:
 3. Make your changes
 4. Test thoroughly
 5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details
 
 ## Support
 
