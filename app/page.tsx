@@ -87,12 +87,6 @@ export default function Home() {
               </ul>
             </div>
           </div>
-
-          {/* Demo Info */}
-          <div className="mt-8 text-center text-sm text-gray-600 bg-yellow-50 p-4 rounded-lg border-2 border-yellow-300">
-            <p className="font-semibold mb-2">🎮 Try Demo Account:</p>
-            <p>Email: patient@example.com | Password: patient123</p>
-          </div>
         </div>
 
         {/* Footer */}

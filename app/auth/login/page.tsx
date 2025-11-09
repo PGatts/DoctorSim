@@ -117,12 +117,6 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
-
-        <div className="mt-4 text-center text-xs text-gray-700">
-          <p className="font-semibold">Demo credentials:</p>
-          <p>Patient: patient@example.com / patient123</p>
-          <p>Admin: admin@doctorsim.com / admin123</p>
-        </div>
       </div>
     </div>
   );

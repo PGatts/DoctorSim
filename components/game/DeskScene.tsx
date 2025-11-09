@@ -48,7 +48,7 @@ export default function DeskScene({
 
       {/* Desk label (optional) */}
       <div className="absolute bottom-2 right-4 text-xs text-gray-700 italic font-semibold">
-        Dr. [Your Name]'s Desk
+        Doctor's Desk
       </div>
     </div>
   );
