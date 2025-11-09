@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
         'Question': r.question.questionText,
         'Answer': r.selectedOption.optionText,
         'Correct': r.isCorrect ? 'Yes' : 'No',
-        'Time Taken (s)': r.timeTaken,
+        'Time Taken (s)': r.timeSpentSeconds,
         'Timestamp': new Date(r.timestamp).toLocaleString()
       }));
 
