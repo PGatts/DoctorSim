@@ -13,6 +13,7 @@ interface AnalysisResult {
   hintsRequired: string[];
   recommendations: string[];
   confidenceScores: Record<string, number>;
+  analysisType?: 'ai' | 'basic';
 }
 
 interface UserInfo {
