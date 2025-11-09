@@ -131,10 +131,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Admins can view any session's analysis
+    const whereClause = session.user.role === 'ADMIN' 
+      ? { sessionId }
+      : { userId: session.user.id, sessionId };
+
     const analysis = await prisma.analysisReport.findFirst({
-      where: {
-        userId: session.user.id,
-        sessionId
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            email: true,
+            name: true
+          }
+        }
       }
     });
 
@@ -150,7 +160,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       analysis,
-      result
+      result,
+      user: analysis.user
     });
   } catch (error) {
     console.error('Error fetching analysis:', error);

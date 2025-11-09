@@ -25,14 +25,22 @@ export default function DashboardPage() {
     if (status === 'unauthenticated') {
       router.push('/auth/login');
     } else if (status === 'authenticated') {
+      // Redirect admins to admin dashboard
+      if (session?.user?.role === 'ADMIN') {
+        router.push('/admin/dashboard');
+        return;
+      }
       loadSessions();
     }
-  }, [status, router]);
+  }, [status, session, router]);
 
   const loadSessions = async () => {
     try {
-      // This is a placeholder - you would need to create an API endpoint
-      // that returns all sessions for a user
+      const response = await fetch('/api/sessions');
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data.sessions);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error loading sessions:', error);
@@ -106,12 +114,6 @@ export default function DashboardPage() {
               🎮 Start New Game
             </button>
           </Link>
-          
-          <Link href="/pre-visit" className="flex-1">
-            <button className="pixel-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg w-full">
-              📋 Pre-Visit Form
-            </button>
-          </Link>
         </motion.div>
 
         {/* Session History */}
@@ -137,10 +139,10 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {sessions.map((gameSession, index) => (
                 <div key={gameSession.sessionId} className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-400 transition">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center mb-3">
                     <div>
                       <h3 className="font-semibold text-gray-900">Session #{sessions.length - index}</h3>
-                      <p className="text-sm text-gray-700">{gameSession.date}</p>
+                      <p className="text-sm text-gray-700">{new Date(gameSession.date).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-blue-600">{gameSession.accuracy}%</div>
@@ -149,12 +151,12 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-2 flex gap-4 text-sm text-gray-700">
+                  <div className="flex gap-4 text-sm text-gray-700 mb-3">
                     <span>💡 {gameSession.hintsUsed} hints used</span>
                   </div>
                   <Link href={`/results/${gameSession.sessionId}`}>
-                    <button className="mt-3 text-blue-600 hover:text-blue-800 font-semibold text-sm">
-                      View Details →
+                    <button className="pixel-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg w-full sm:w-auto">
+                      🤖 View AI Insights & Results
                     </button>
                   </Link>
                 </div>

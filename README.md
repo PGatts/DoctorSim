@@ -59,9 +59,21 @@ npm run dev
 
 5. **Open [http://localhost:3000](http://localhost:3000)**
 
-**Demo Login:**
+**Demo Logins:**
+
+Patient Account:
 - Email: `patient@example.com`
 - Password: `patient123`
+
+Admin Account:
+- Email: `admin@doctorsim.com`
+- Password: `admin123`
+
+### Admin Panel
+
+Admins have access to a comprehensive dashboard with user analytics, question management, and data export features.
+
+See [ADMIN_GUIDE.md](./ADMIN_GUIDE.md) for detailed admin panel documentation.
 
 ### Deployment
 

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 interface AnalysisResult {
   strongAreas: string[];
@@ -15,16 +15,25 @@ interface AnalysisResult {
   confidenceScores: Record<string, number>;
 }
 
-export default function ResultsPage({ params }: { params: { sessionId: string } }) {
+interface UserInfo {
+  email: string;
+  name: string | null;
+}
+
+export default function ResultsPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [responses, setResponses] = useState<any[]>([]);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [sessionUser, setSessionUser] = useState<UserInfo | null>(null);
   const [error, setError] = useState('');
 
-  const sessionId = params.sessionId;
+  const resolvedParams = use(params);
+  const sessionId = resolvedParams.sessionId;
+  const isAdmin = session?.user?.role === 'ADMIN';
+  const isOwnSession = !isAdmin; // If not admin, assume it's their own session (API will verify)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -46,6 +55,11 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
       if (responsesRes.ok) {
         const data = await responsesRes.json();
         setResponses(data.responses);
+        setSessionUser(data.user);
+      } else {
+        setError('Could not load session data');
+        setLoading(false);
+        return;
       }
 
       // Try to fetch existing analysis
@@ -54,9 +68,15 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
       if (analysisRes.ok) {
         const data = await analysisRes.json();
         setAnalysis(data.result);
+        // Update session user from analysis if available
+        if (data.user) {
+          setSessionUser(data.user);
+        }
       } else {
-        // If no analysis exists, create one
-        await performAnalysis();
+        // If no analysis exists and user owns the session, create one
+        if (!isAdmin) {
+          await performAnalysis();
+        }
       }
     } catch (err) {
       console.error('Error loading results:', err);
@@ -90,7 +110,7 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-100 to-blue-100">
         <div className="dialog-box bg-white p-8 rounded-lg">
-          <p className="text-xl font-bold">Loading results...</p>
+          <p className="text-xl font-bold text-gray-900">Loading results...</p>
         </div>
       </div>
     );
@@ -101,8 +121,8 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-purple-100 to-blue-100">
         <div className="dialog-box bg-white p-8 rounded-lg text-center">
           <div className="animate-spin w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-xl font-bold">🤖 AI is analyzing your performance...</p>
-          <p className="text-gray-600 mt-2">This may take a few moments</p>
+          <p className="text-xl font-bold text-gray-900">🤖 AI is analyzing performance...</p>
+          <p className="text-gray-700 mt-2">This may take a few moments</p>
         </div>
       </div>
     );
@@ -113,7 +133,12 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-red-100 to-orange-100">
         <div className="dialog-box bg-white p-8 rounded-lg">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
-          <p>{error}</p>
+          <p className="text-gray-900">{error}</p>
+          <Link href={isAdmin ? "/admin/dashboard" : "/dashboard"}>
+            <button className="pixel-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg mt-4">
+              Go Back
+            </button>
+          </Link>
         </div>
       </div>
     );
@@ -128,13 +153,6 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
     : 0;
 
   // Prepare chart data
-  const radarData = analysis?.confidenceScores
-    ? Object.entries(analysis.confidenceScores).map(([category, score]) => ({
-        category: category.replace(/_/g, ' '),
-        score
-      }))
-    : [];
-
   const categoryData = responses.reduce((acc: any[], response) => {
     const category = response.question.category;
     const existing = acc.find(item => item.category === category);
@@ -159,16 +177,40 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-100 via-blue-50 to-green-50 py-8 px-4">
       <div className="max-w-6xl mx-auto">
+        {/* Admin Header - Only shown for admins */}
+        {isAdmin && sessionUser && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="dialog-box bg-purple-50 border-4 border-purple-400 p-4 rounded-lg mb-6"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-bold text-purple-900">ADMIN VIEW - Viewing User Session</div>
+                <div className="text-lg font-bold text-gray-900">{sessionUser.name || 'No name'}</div>
+                <div className="text-sm text-gray-700">{sessionUser.email}</div>
+              </div>
+              <Link href="/admin/users">
+                <button className="pixel-button bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">
+                  ← Back to Users
+                </button>
+              </Link>
+            </div>
+          </motion.div>
+        )}
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <h1 className="text-4xl md:text-5xl font-bold mb-2" style={{ fontFamily: 'var(--font-pixel)' }}>
-            Game Complete! 🎉
+          <h1 className="text-4xl md:text-5xl font-bold mb-2 text-gray-900" style={{ fontFamily: 'var(--font-pixel)' }}>
+            {isOwnSession ? 'Game Complete! 🎉' : 'Session Results'}
           </h1>
-          <p className="text-lg text-gray-700">Here's how you performed</p>
+          <p className="text-lg text-gray-700">
+            {isOwnSession ? "Here's how you performed" : 'Session performance analysis'}
+          </p>
         </motion.div>
 
         {/* Summary Stats */}
@@ -180,138 +222,231 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
         >
           <div className="dialog-box bg-white p-6 rounded-lg text-center">
             <div className="text-3xl md:text-4xl font-bold text-blue-600">{accuracy}%</div>
-            <div className="text-sm text-gray-600 mt-1">Accuracy</div>
+            <div className="text-sm text-gray-700 mt-1">Accuracy</div>
           </div>
           
           <div className="dialog-box bg-white p-6 rounded-lg text-center">
             <div className="text-3xl md:text-4xl font-bold text-green-600">{correctAnswers}/{totalQuestions}</div>
-            <div className="text-sm text-gray-600 mt-1">Correct</div>
+            <div className="text-sm text-gray-700 mt-1">Correct</div>
           </div>
           
           <div className="dialog-box bg-white p-6 rounded-lg text-center">
             <div className="text-3xl md:text-4xl font-bold text-purple-600">{hintsUsed}</div>
-            <div className="text-sm text-gray-600 mt-1">Hints Used</div>
+            <div className="text-sm text-gray-700 mt-1">Hints Used</div>
           </div>
           
           <div className="dialog-box bg-white p-6 rounded-lg text-center">
             <div className="text-3xl md:text-4xl font-bold text-orange-600">{averageTime}s</div>
-            <div className="text-sm text-gray-600 mt-1">Avg. Time</div>
+            <div className="text-sm text-gray-700 mt-1">Avg. Time</div>
           </div>
         </motion.div>
 
-        {/* Charts */}
+        {/* AI Analysis Section - Most Important */}
         {analysis && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="grid md:grid-cols-2 gap-8 mb-8"
+            className="mb-8"
           >
-            {/* Radar Chart */}
-            {radarData.length > 0 && (
-              <div className="dialog-box bg-white p-6 rounded-lg">
-                <h3 className="text-xl font-bold mb-4">Knowledge by Category</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="category" style={{ fontSize: '12px' }} />
-                    <PolarRadiusAxis domain={[0, 100]} />
-                    <Radar name="Score" dataKey="score" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
-                  </RadarChart>
-                </ResponsiveContainer>
+            <div className="dialog-box bg-gradient-to-br from-blue-50 to-purple-50 border-4 border-blue-400 p-6 rounded-lg mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-4xl">🤖</span>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">AI Insights</h2>
+                  <p className="text-sm text-gray-700">Personalized analysis of {isOwnSession ? 'your' : 'user'} performance</p>
+                </div>
               </div>
-            )}
+            </div>
 
-            {/* Bar Chart */}
-            <div className="dialog-box bg-white p-6 rounded-lg">
-              <h3 className="text-xl font-bold mb-4">Accuracy by Category</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={categoryData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" style={{ fontSize: '12px' }} />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="accuracy" fill="#82ca9d" name="Accuracy %" />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="space-y-6">
+              {/* Strong Areas */}
+              {analysis.strongAreas.length > 0 && (
+                <div className="dialog-box bg-green-50 p-6 rounded-lg border-4 border-green-400">
+                  <h3 className="text-xl font-bold text-green-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">💪</span> Strong Areas
+                  </h3>
+                  <p className="text-sm text-gray-700 mb-3">
+                    {isOwnSession ? 'You' : 'This user'} demonstrated excellent understanding in these areas:
+                  </p>
+                  <ul className="space-y-2">
+                    {analysis.strongAreas.map((area, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-green-600 font-bold text-xl">✓</span>
+                        <span className="text-gray-900 font-semibold">{area}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Knowledge Gaps */}
+              {analysis.knowledgeGaps.length > 0 && (
+                <div className="dialog-box bg-yellow-50 p-6 rounded-lg border-4 border-yellow-400">
+                  <h3 className="text-xl font-bold text-yellow-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">📚</span> Areas for Improvement
+                  </h3>
+                  <p className="text-sm text-gray-700 mb-3">
+                    {isOwnSession ? 'You may benefit' : 'This user may benefit'} from reviewing these topics:
+                  </p>
+                  <ul className="space-y-2">
+                    {analysis.knowledgeGaps.map((gap, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-yellow-600 font-bold text-xl">!</span>
+                        <span className="text-gray-900 font-semibold">{gap}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Hints Analysis */}
+              {analysis.hintsRequired.length > 0 && (
+                <div className="dialog-box bg-orange-50 p-6 rounded-lg border-4 border-orange-400">
+                  <h3 className="text-xl font-bold text-orange-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">💡</span> Topics Where Hints Were Needed
+                  </h3>
+                  <p className="text-sm text-gray-700 mb-3">
+                    {isOwnSession ? 'You' : 'User'} requested hints for questions in these categories:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.hintsRequired.map((hint, index) => (
+                      <span key={index} className="px-3 py-1 bg-orange-200 text-orange-900 rounded-full font-semibold text-sm">
+                        {hint}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {analysis.recommendations.length > 0 && (
+                <div className="dialog-box bg-blue-50 p-6 rounded-lg border-4 border-blue-400">
+                  <h3 className="text-xl font-bold text-blue-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">🎯</span> Personalized Recommendations
+                  </h3>
+                  <p className="text-sm text-gray-700 mb-3">
+                    Based on this session, here are targeted recommendations:
+                  </p>
+                  <ul className="space-y-2">
+                    {analysis.recommendations.map((rec, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-blue-600 font-bold text-xl">→</span>
+                        <span className="text-gray-900">{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
 
-        {/* AI Analysis Results */}
-        {analysis && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="space-y-6 mb-8"
-          >
-            {/* Strong Areas */}
-            {analysis.strongAreas.length > 0 && (
-              <div className="dialog-box bg-green-50 p-6 rounded-lg border-4 border-green-400">
-                <h3 className="text-xl font-bold text-green-800 mb-3">💪 Strong Areas</h3>
-                <ul className="space-y-2">
-                  {analysis.strongAreas.map((area, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-green-600 font-bold">✓</span>
-                      <span>{area}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+        {/* Accuracy Chart - Full Width */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="mb-8"
+        >
+          <div className="dialog-box bg-white p-6 rounded-lg">
+            <h3 className="text-2xl font-bold mb-4 text-gray-900">Accuracy by Category</h3>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={categoryData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" style={{ fontSize: '14px' }} />
+                <YAxis domain={[0, 100]} label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft' }} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="accuracy" fill="#82ca9d" name="Accuracy %" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
 
-            {/* Knowledge Gaps */}
-            {analysis.knowledgeGaps.length > 0 && (
-              <div className="dialog-box bg-yellow-50 p-6 rounded-lg border-4 border-yellow-400">
-                <h3 className="text-xl font-bold text-yellow-800 mb-3">📚 Areas for Improvement</h3>
-                <ul className="space-y-2">
-                  {analysis.knowledgeGaps.map((gap, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-yellow-600 font-bold">!</span>
-                      <span>{gap}</span>
-                    </li>
-                  ))}
-                </ul>
+        {/* Question-by-Question Breakdown */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="dialog-box bg-white p-6 rounded-lg mb-8"
+        >
+          <h3 className="text-2xl font-bold mb-4 text-gray-900">Question Breakdown</h3>
+          <div className="space-y-4">
+            {responses.map((response, index) => (
+              <div 
+                key={index} 
+                className={`border-2 rounded-lg p-4 ${
+                  response.isCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`font-bold ${response.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                        Question {index + 1}
+                      </span>
+                      <span className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs font-semibold">
+                        {response.question.category}
+                      </span>
+                      {response.usedHint && (
+                        <span className="px-2 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs font-semibold">
+                          💡 Hint Used
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-gray-900 font-semibold mb-2">{response.question.questionText}</p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-semibold">Answer:</span> {response.selectedOption.optionText}
+                    </p>
+                    {!response.isCorrect && (
+                      <p className="text-sm text-gray-700 mt-1 italic">
+                        {response.selectedOption.explanation}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right ml-4">
+                    <div className={`text-2xl font-bold ${response.isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                      {response.isCorrect ? '✓' : '✗'}
+                    </div>
+                    <div className="text-xs text-gray-600">{response.timeSpentSeconds}s</div>
+                  </div>
+                </div>
               </div>
-            )}
-
-            {/* Recommendations */}
-            {analysis.recommendations.length > 0 && (
-              <div className="dialog-box bg-blue-50 p-6 rounded-lg border-4 border-blue-400">
-                <h3 className="text-xl font-bold text-blue-800 mb-3">🎯 Recommendations</h3>
-                <ul className="space-y-2">
-                  {analysis.recommendations.map((rec, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="text-blue-600 font-bold">→</span>
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </motion.div>
-        )}
+            ))}
+          </div>
+        </motion.div>
 
         {/* Action Buttons */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
+          transition={{ delay: 1.0 }}
           className="flex flex-col sm:flex-row gap-4 justify-center"
         >
-          <Link href="/game">
-            <button className="pixel-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg w-full sm:w-auto">
-              Play Again
-            </button>
-          </Link>
+          {!isAdmin && (
+            <>
+              <Link href="/game">
+                <button className="pixel-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg w-full sm:w-auto">
+                  Play Again
+                </button>
+              </Link>
+              
+              <Link href="/dashboard">
+                <button className="pixel-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg w-full sm:w-auto">
+                  View Dashboard
+                </button>
+              </Link>
+            </>
+          )}
           
-          <Link href="/dashboard">
-            <button className="pixel-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg w-full sm:w-auto">
-              View Dashboard
-            </button>
-          </Link>
+          {isAdmin && (
+            <Link href="/admin/users">
+              <button className="pixel-button bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-6 rounded-lg w-full sm:w-auto">
+                Back to Users
+              </button>
+            </Link>
+          )}
           
           <Link href="/">
             <button className="pixel-button bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg w-full sm:w-auto">
@@ -323,4 +458,3 @@ export default function ResultsPage({ params }: { params: { sessionId: string } 
     </div>
   );
 }
-

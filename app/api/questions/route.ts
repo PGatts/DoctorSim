@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const difficulty = searchParams.get('difficulty');
     const limit = parseInt(searchParams.get('limit') || '10');
+    const shuffle_param = searchParams.get('shuffle') !== 'false'; // Default to true, disable with shuffle=false
 
     // Build filter
     const where: any = {
@@ -53,12 +54,33 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Shuffle questions for variety
-    const shuffledQuestions = questions.sort(() => Math.random() - 0.5);
+    // Helper function for better shuffling (Fisher-Yates algorithm)
+    const shuffle = <T>(array: T[]): T[] => {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+
+    // Apply shuffling if enabled
+    let finalQuestions = questions;
+    
+    if (shuffle_param) {
+      // Shuffle questions
+      const shuffledQuestions = shuffle(questions);
+      
+      // Shuffle answer options for each question
+      finalQuestions = shuffledQuestions.map(question => ({
+        ...question,
+        answerOptions: shuffle(question.answerOptions)
+      }));
+    }
 
     return NextResponse.json({
-      questions: shuffledQuestions,
-      count: shuffledQuestions.length
+      questions: finalQuestions,
+      count: finalQuestions.length
     });
   } catch (error) {
     console.error('Error fetching questions:', error);

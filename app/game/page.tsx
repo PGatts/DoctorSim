@@ -17,6 +17,7 @@ export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [showPatient, setShowPatient] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
   const {
     questions,
@@ -262,9 +263,7 @@ export default function GamePage() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (window.confirm('Are you sure you want to exit? Your progress will be saved.')) {
-                  router.push('/dashboard');
-                }
+                setShowExitDialog(true);
               }}
               className="pixel-button bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg"
             >
@@ -273,6 +272,44 @@ export default function GamePage() {
           </div>
         </div>
       </div>
+
+      {/* Exit Dialog Modal */}
+      {showExitDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="dialog-box bg-white p-8 rounded-lg max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4 text-gray-900">Exit Game?</h2>
+            <p className="text-gray-700 mb-6">
+              Your progress has been saved! Would you like to view your AI insights now or return to the dashboard?
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  router.push(`/results/${sessionId}`);
+                }}
+                className="pixel-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg w-full"
+              >
+                🤖 View AI Insights
+              </button>
+              <button
+                onClick={() => {
+                  router.push('/dashboard');
+                }}
+                className="pixel-button bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg w-full"
+              >
+                Go to Dashboard
+              </button>
+              <button
+                onClick={() => {
+                  setShowExitDialog(false);
+                }}
+                className="pixel-button bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg w-full"
+              >
+                Keep Playing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

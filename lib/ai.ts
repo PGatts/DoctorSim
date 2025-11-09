@@ -28,10 +28,11 @@ export interface AnalysisResult {
 export async function analyzeSessionWithAI(
   sessionData: SessionAnalysisData
 ): Promise<AnalysisResult> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   
   if (!apiKey) {
     // Fallback to basic analysis if no API key
+    console.log('No AI API key configured, using basic analysis');
     return performBasicAnalysis(sessionData);
   }
 
@@ -40,17 +41,14 @@ export async function analyzeSessionWithAI(
   try {
     // OpenAI API call
     if (process.env.OPENAI_API_KEY) {
+      console.log('Attempting OpenAI analysis...');
       return await analyzeWithOpenAI(prompt, sessionData);
-    }
-    
-    // Claude API call
-    if (process.env.ANTHROPIC_API_KEY) {
-      return await analyzeWithClaude(prompt, sessionData);
     }
     
     return performBasicAnalysis(sessionData);
   } catch (error) {
-    console.error('AI analysis error:', error);
+    console.error('AI analysis error, falling back to basic analysis:', error);
+    // Always fall back to basic analysis on error
     return performBasicAnalysis(sessionData);
   }
 }
@@ -94,7 +92,7 @@ async function analyzeWithOpenAI(prompt: string, data: SessionAnalysisData): Pro
       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model: 'gpt-4o-mini', // More affordable and accessible model
       messages: [
         {
           role: 'system',
@@ -110,31 +108,20 @@ async function analyzeWithOpenAI(prompt: string, data: SessionAnalysisData): Pro
   });
 
   const result = await response.json();
+  
+  // Check for API errors
+  if (!response.ok || result.error) {
+    console.error('OpenAI API error:', result.error || result);
+    throw new Error(result.error?.message || 'OpenAI API request failed');
+  }
+
+  // Check if response has expected structure
+  if (!result.choices || !result.choices[0] || !result.choices[0].message) {
+    console.error('Unexpected OpenAI response format:', result);
+    throw new Error('Unexpected response format from OpenAI');
+  }
+
   return JSON.parse(result.choices[0].message.content);
-}
-
-async function analyzeWithClaude(prompt: string, data: SessionAnalysisData): Promise<AnalysisResult> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY!,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]
-    })
-  });
-
-  const result = await response.json();
-  return JSON.parse(result.content[0].text);
 }
 
 function performBasicAnalysis(data: SessionAnalysisData): AnalysisResult {

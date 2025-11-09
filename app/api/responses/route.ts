@@ -89,11 +89,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Admins can view any session's responses
+    const whereClause = session.user.role === 'ADMIN' 
+      ? { sessionId }
+      : { userId: session.user.id, sessionId };
+
     const responses = await prisma.userResponse.findMany({
-      where: {
-        userId: session.user.id,
-        sessionId
-      },
+      where: whereClause,
       include: {
         question: {
           select: {
@@ -107,6 +109,12 @@ export async function GET(request: NextRequest) {
             isCorrect: true,
             explanation: true
           }
+        },
+        user: {
+          select: {
+            email: true,
+            name: true
+          }
         }
       },
       orderBy: {
@@ -114,9 +122,13 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Get user info from first response
+    const userInfo = responses.length > 0 ? responses[0].user : null;
+
     return NextResponse.json({
       responses,
-      count: responses.length
+      count: responses.length,
+      user: userInfo
     });
   } catch (error) {
     console.error('Error fetching responses:', error);
