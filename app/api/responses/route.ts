@@ -16,9 +16,13 @@ const responseSchema = z.object({
 const bulkResponseSchema = z.array(responseSchema);
 
 export async function POST(request: NextRequest) {
+  console.log('🔵 POST /api/responses called');
   try {
     const session = await getServerSession(authOptions);
+    console.log('🔵 Session:', session ? 'exists' : 'null', 'User ID:', session?.user?.id);
+    
     if (!session?.user?.id) {
+      console.log('❌ Unauthorized - no session');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -26,21 +30,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    console.log('📥 Received body:', JSON.stringify(body, null, 2));
     
     // Validate input - support both single and bulk responses
     let responses;
     try {
-      responses = bulkResponseSchema.parse(body.responses || [body]);
+      const dataToValidate = body.responses || [body];
+      console.log('🔍 Validating data:', JSON.stringify(dataToValidate, null, 2));
+      responses = bulkResponseSchema.parse(dataToValidate);
+      console.log('✅ Validation passed, responses:', responses.length);
     } catch (validationError) {
+      console.error('❌ Validation error:', validationError);
       return NextResponse.json(
-        { error: 'Invalid request data' },
+        { error: 'Invalid request data', details: validationError },
         { status: 400 }
       );
     }
 
     // Save all responses
+    console.log('💾 Saving', responses.length, 'responses to database...');
     const savedResponses = await Promise.all(
       responses.map(async (response) => {
+        console.log('💾 Saving response for question:', response.questionId);
         return await prisma.userResponse.create({
           data: {
             userId: session.user.id,
@@ -55,14 +66,16 @@ export async function POST(request: NextRequest) {
       })
     );
 
+    console.log('✅ Successfully saved', savedResponses.length, 'responses');
     return NextResponse.json({
       message: 'Responses saved successfully',
       count: savedResponses.length
     });
   } catch (error) {
-    console.error('Error saving responses:', error);
+    console.error('❌ Error saving responses:', error);
+    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
-      { error: 'Failed to save responses' },
+      { error: 'Failed to save responses', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

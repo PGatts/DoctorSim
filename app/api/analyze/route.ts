@@ -5,12 +5,16 @@ import { prisma } from '@/lib/db';
 import { analyzeSessionWithAI, SessionAnalysisData } from '@/lib/ai';
 
 export async function POST(request: NextRequest) {
+  console.log('🔵 POST /api/analyze called');
   try {
     const session = await getServerSession(authOptions);
+    console.log('🔵 Session retrieved:', session ? 'exists' : 'null', 'User ID:', session?.user?.id);
+    
     if (!session?.user?.id) {
-      console.log('❌ Unauthorized analysis request - no session');
+      console.log('❌ Unauthorized analysis request - no session or user ID');
+      console.log('Session details:', JSON.stringify(session, null, 2));
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - no valid session' },
         { status: 401 }
       );
     }
@@ -34,10 +38,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingAnalysis) {
-      console.log(`ℹ️  Analysis already exists for session: ${sessionId}`);
-      return NextResponse.json({
-        message: 'Analysis already exists',
-        analysis: existingAnalysis
+      console.log(`ℹ️  Analysis already exists for session: ${sessionId}, deleting and regenerating...`);
+      // Delete the existing analysis to regenerate
+      await prisma.analysisReport.delete({
+        where: {
+          id: existingAnalysis.id
+        }
       });
     }
 
@@ -117,8 +123,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Error analyzing session:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Send detailed error response
     return NextResponse.json(
-      { error: 'Failed to analyze session', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to analyze session', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        type: error instanceof Error ? error.constructor.name : typeof error,
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

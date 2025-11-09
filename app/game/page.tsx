@@ -101,6 +101,15 @@ export default function GamePage() {
         if (selectedOption) {
           const timeSpent = Math.floor((Date.now() - useGameStore.getState().questionStartTime) / 1000);
           
+          console.log('💾 Saving response to database:', {
+            sessionId,
+            questionId: currentQuestion.id,
+            selectedOptionId: optionId,
+            isCorrect: selectedOption.isCorrect,
+            timeSpentSeconds: timeSpent,
+            usedHint: usedHintForCurrentQuestion
+          });
+          
           fetch('/api/responses', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -112,7 +121,24 @@ export default function GamePage() {
               timeSpentSeconds: timeSpent,
               usedHint: usedHintForCurrentQuestion
             })
-          }).catch(err => console.error('Failed to save response:', err));
+          })
+            .then(response => {
+              console.log('📥 Response save status:', response.status);
+              if (!response.ok) {
+                return response.json().then(data => {
+                  console.error('❌ Failed to save response:', data);
+                  throw new Error(`Save failed: ${data.error}`);
+                });
+              }
+              return response.json();
+            })
+            .then(data => {
+              console.log('✅ Response saved successfully:', data);
+            })
+            .catch(err => {
+              console.error('❌ Failed to save response:', err);
+              console.error('Error details:', err.message);
+            });
         }
       }, 500);
     }

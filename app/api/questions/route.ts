@@ -34,8 +34,19 @@ export async function GET(request: NextRequest) {
       where.difficultyLevel = difficulty.toUpperCase();
     }
 
-    // Fetch random questions
-    const questions = await prisma.question.findMany({
+    // Helper function for better shuffling (Fisher-Yates algorithm)
+    const shuffle = <T>(array: T[]): T[] => {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+
+    // Fetch ALL questions matching the filter (no limit, no ordering)
+    // This ensures we get a truly random sample from all categories
+    const allQuestions = await prisma.question.findMany({
       where,
       include: {
         answerOptions: {
@@ -47,35 +58,38 @@ export async function GET(request: NextRequest) {
             educationalResourceLink: true
           }
         }
-      },
-      take: limit,
-      orderBy: {
-        createdAt: 'desc'
       }
     });
 
-    // Helper function for better shuffling (Fisher-Yates algorithm)
-    const shuffle = <T>(array: T[]): T[] => {
-      const shuffled = [...array];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    };
+    console.log(`📚 Found ${allQuestions.length} total questions in database`);
 
     // Apply shuffling if enabled
-    let finalQuestions = questions;
+    let finalQuestions = allQuestions;
     
     if (shuffle_param) {
-      // Shuffle questions
-      const shuffledQuestions = shuffle(questions);
+      // Shuffle ALL questions first to get random selection
+      const shuffledQuestions = shuffle(allQuestions);
       
-      // Shuffle answer options for each question
-      finalQuestions = shuffledQuestions.map(question => ({
+      // Take only the requested limit from the shuffled set
+      const selectedQuestions = shuffledQuestions.slice(0, limit);
+      
+      // Shuffle answer options for each selected question
+      finalQuestions = selectedQuestions.map(question => ({
         ...question,
         answerOptions: shuffle(question.answerOptions)
       }));
+      
+      // Log category distribution for verification
+      const categoryDistribution = finalQuestions.reduce((acc: Record<string, number>, q) => {
+        acc[q.category] = (acc[q.category] || 0) + 1;
+        return acc;
+      }, {});
+      
+      console.log(`🎲 Randomly selected ${finalQuestions.length} questions from ${allQuestions.length} total`);
+      console.log(`📊 Category distribution:`, categoryDistribution);
+    } else {
+      // If shuffling is disabled (admin view), just take the first `limit` questions
+      finalQuestions = allQuestions.slice(0, limit);
     }
 
     return NextResponse.json({

@@ -50,37 +50,46 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
   const loadResults = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Loading results for session:', sessionId);
 
       // Fetch responses
       const responsesRes = await fetch(`/api/responses?sessionId=${sessionId}`);
       if (responsesRes.ok) {
         const data = await responsesRes.json();
+        console.log('✅ Loaded responses:', data.responses.length);
         setResponses(data.responses);
         setSessionUser(data.user);
       } else {
+        console.error('❌ Failed to load responses:', responsesRes.status);
         setError('Could not load session data');
         setLoading(false);
         return;
       }
 
       // Try to fetch existing analysis
+      console.log('🔍 Checking for existing analysis...');
       const analysisRes = await fetch(`/api/analyze?sessionId=${sessionId}`);
       
       if (analysisRes.ok) {
         const data = await analysisRes.json();
+        console.log('✅ Found existing analysis:', data.result);
         setAnalysis(data.result);
         // Update session user from analysis if available
         if (data.user) {
           setSessionUser(data.user);
         }
       } else {
+        console.log('⚠️ No existing analysis found, status:', analysisRes.status);
         // If no analysis exists and user owns the session, create one
         if (!isAdmin) {
+          console.log('🔨 Creating new analysis...');
           await performAnalysis();
+        } else {
+          console.log('ℹ️ Admin view - not creating analysis automatically');
         }
       }
     } catch (err) {
-      console.error('Error loading results:', err);
+      console.error('❌ Error loading results:', err);
       setError('Failed to load results');
     } finally {
       setLoading(false);
@@ -90,18 +99,39 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
   const performAnalysis = async () => {
     try {
       setAnalyzing(true);
+      console.log('📤 Sending analysis request...');
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId })
       });
 
+      console.log('📥 Analysis response status:', response.status);
+      console.log('📥 Analysis response headers:', Object.fromEntries(response.headers.entries()));
+
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Analysis completed:', data.result);
         setAnalysis(data.result);
+      } else {
+        // Try to parse error response
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseErr) {
+          const text = await response.text();
+          console.error('❌ Failed to parse error response:', text);
+          errorData = { error: 'Failed to parse response', rawText: text };
+        }
+        console.error('❌ Analysis failed:', errorData);
+        console.error('❌ Response status:', response.status, response.statusText);
       }
     } catch (err) {
-      console.error('Error analyzing session:', err);
+      console.error('❌ Error analyzing session:', err);
+      if (err instanceof Error) {
+        console.error('❌ Error message:', err.message);
+        console.error('❌ Error stack:', err.stack);
+      }
     } finally {
       setAnalyzing(false);
     }
@@ -152,6 +182,7 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
   const averageTime = totalQuestions > 0 
     ? Math.round(responses.reduce((sum, r) => sum + r.timeSpentSeconds, 0) / totalQuestions) 
     : 0;
+
 
   // Prepare chart data
   const categoryData = responses.reduce((acc: any[], response) => {
@@ -243,7 +274,7 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
         </motion.div>
 
         {/* AI Analysis Section - Most Important */}
-        {analysis && (
+        {analysis ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -286,7 +317,7 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
 
             <div className="space-y-6">
               {/* Strong Areas */}
-              {analysis.strongAreas.length > 0 && (
+              {analysis.strongAreas && analysis.strongAreas.length > 0 && (
                 <div className="dialog-box bg-green-50 p-6 rounded-lg border-4 border-green-400">
                   <h3 className="text-xl font-bold text-green-800 mb-3 flex items-center gap-2">
                     <span className="text-2xl">💪</span> Strong Areas
@@ -306,7 +337,7 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
               )}
 
               {/* Knowledge Gaps */}
-              {analysis.knowledgeGaps.length > 0 && (
+              {analysis.knowledgeGaps && analysis.knowledgeGaps.length > 0 && (
                 <div className="dialog-box bg-yellow-50 p-6 rounded-lg border-4 border-yellow-400">
                   <h3 className="text-xl font-bold text-yellow-800 mb-3 flex items-center gap-2">
                     <span className="text-2xl">📚</span> Areas for Improvement
@@ -326,7 +357,7 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
               )}
 
               {/* Hints Analysis */}
-              {analysis.hintsRequired.length > 0 && (
+              {analysis.hintsRequired && analysis.hintsRequired.length > 0 && (
                 <div className="dialog-box bg-orange-50 p-6 rounded-lg border-4 border-orange-400">
                   <h3 className="text-xl font-bold text-orange-800 mb-3 flex items-center gap-2">
                     <span className="text-2xl">💡</span> Topics Where Hints Were Needed
@@ -345,7 +376,7 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
               )}
 
               {/* Recommendations */}
-              {analysis.recommendations.length > 0 && (
+              {analysis.recommendations && analysis.recommendations.length > 0 && (
                 <div className="dialog-box bg-blue-50 p-6 rounded-lg border-4 border-blue-400">
                   <h3 className="text-xl font-bold text-blue-800 mb-3 flex items-center gap-2">
                     <span className="text-2xl">🎯</span> Personalized Recommendations
@@ -362,6 +393,62 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
                     ))}
                   </ul>
                 </div>
+              )}
+
+              {/* Empty Analysis Warning */}
+              {(!analysis.strongAreas || analysis.strongAreas.length === 0) &&
+               (!analysis.knowledgeGaps || analysis.knowledgeGaps.length === 0) &&
+               (!analysis.hintsRequired || analysis.hintsRequired.length === 0) &&
+               (!analysis.recommendations || analysis.recommendations.length === 0) && (
+                <div className="dialog-box bg-red-50 p-6 rounded-lg border-4 border-red-400">
+                  <h3 className="text-xl font-bold text-red-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">⚠️</span> Empty Analysis
+                  </h3>
+                  <p className="text-gray-900 mb-2">
+                    The analysis was created but contains no data. This might be because:
+                  </p>
+                  <ul className="list-disc list-inside text-gray-700 space-y-1">
+                    <li>No responses were found for this session</li>
+                    <li>There was an error during analysis</li>
+                    <li>The analysis data was not saved properly</li>
+                  </ul>
+                  <div className="mt-4">
+                    <button
+                      onClick={async () => {
+                        // Delete old analysis and regenerate
+                        console.log('🔄 Regenerating analysis...');
+                        await performAnalysis();
+                      }}
+                      className="pixel-button bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg"
+                    >
+                      🔄 Regenerate Analysis
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mb-8"
+          >
+            <div className="dialog-box bg-yellow-50 border-4 border-yellow-400 p-6 rounded-lg text-center">
+              <div className="text-4xl mb-3">⚠️</div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Analysis Not Available</h3>
+              <p className="text-gray-700 mb-4">
+                No performance analysis found for this session.
+              </p>
+              {!isAdmin && (
+                <button
+                  onClick={performAnalysis}
+                  disabled={analyzing}
+                  className="pixel-button bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-bold py-2 px-6 rounded-lg"
+                >
+                  {analyzing ? '⏳ Analyzing...' : '🤖 Generate Analysis Now'}
+                </button>
               )}
             </div>
           </motion.div>

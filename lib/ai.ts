@@ -134,6 +134,13 @@ async function analyzeWithOpenAI(prompt: string, data: SessionAnalysisData): Pro
 }
 
 function performBasicAnalysis(data: SessionAnalysisData): AnalysisResult {
+  console.log('📊 Starting basic analysis with data:', {
+    questionsCount: data.questionsAnswered.length,
+    categories: data.categories,
+    correctCount: data.correctAnswers.length,
+    incorrectCount: data.incorrectAnswers.length
+  });
+
   const categoryScores: Record<string, { correct: number; total: number }> = {};
   
   data.questionsAnswered.forEach(q => {
@@ -145,6 +152,8 @@ function performBasicAnalysis(data: SessionAnalysisData): AnalysisResult {
       categoryScores[q.category].correct++;
     }
   });
+
+  console.log('📈 Category scores calculated:', categoryScores);
 
   const confidenceScores: Record<string, number> = {};
   const strongAreas: string[] = [];
@@ -169,12 +178,24 @@ function performBasicAnalysis(data: SessionAnalysisData): AnalysisResult {
     gap => `Review materials on ${gap} to improve understanding`
   );
 
-  return {
+  // Add default recommendations if none exist
+  if (recommendations.length === 0) {
+    recommendations.push('Continue practicing to maintain your knowledge level');
+    if (strongAreas.length > 0) {
+      recommendations.push(`Great job on ${strongAreas.join(', ')}! Keep it up!`);
+    }
+  }
+
+  const result = {
     strongAreas,
     knowledgeGaps,
     hintsRequired: [...new Set(hintsRequired)],
     recommendations,
     confidenceScores
   };
+
+  console.log('✅ Basic analysis result:', result);
+
+  return result;
 }
 
