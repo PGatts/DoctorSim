@@ -250,13 +250,37 @@ export default function ResultsPage({ params }: { params: Promise<{ sessionId: s
             className="mb-8"
           >
             <div className="dialog-box bg-gradient-to-br from-blue-50 to-purple-50 border-4 border-blue-400 p-6 rounded-lg mb-6">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-4xl">🤖</span>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">AI Insights</h2>
-                  <p className="text-sm text-gray-700">Personalized analysis of {isOwnSession ? 'your' : 'user'} performance</p>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-4xl">🤖</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {analysis.analysisType === 'ai' ? 'AI-Powered Insights' : 'Performance Analysis'}
+                    </h2>
+                    <p className="text-sm text-gray-700">
+                      Personalized analysis of {isOwnSession ? 'your' : 'user'} performance
+                    </p>
+                  </div>
                 </div>
+                {analysis.analysisType && (
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    analysis.analysisType === 'ai' 
+                      ? 'bg-green-200 text-green-800' 
+                      : 'bg-yellow-200 text-yellow-800'
+                  }`}>
+                    {analysis.analysisType === 'ai' ? '✨ AI-Generated' : '📊 Basic Analysis'}
+                  </div>
+                )}
               </div>
+              {analysis.analysisType === 'basic' && (
+                <div className="mt-2 p-3 bg-yellow-100 border-l-4 border-yellow-500 rounded">
+                  <p className="text-xs text-yellow-900">
+                    <span className="font-bold">Note:</span> AI analysis is currently unavailable. 
+                    This analysis is based on statistical patterns from your session data.
+                    {isAdmin && ' To enable AI insights, configure the OPENAI_API_KEY in Vercel settings.'}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-6">

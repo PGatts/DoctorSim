@@ -125,8 +125,26 @@ See `.env.example` for required environment variables:
 
 - `DATABASE_URL`: PostgreSQL connection string
 - `NEXTAUTH_SECRET`: Secret for NextAuth.js sessions
-- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`: For AI analysis
+- `OPENAI_API_KEY`: For AI-powered insights (optional - falls back to basic analysis)
+- `NEXTAUTH_URL`: Your app URL (e.g., https://your-app.vercel.app for production)
 - `GOOGLE_CLIENT_ID/SECRET`: Optional OAuth integration
+
+### AI Insights Configuration
+
+The app includes an AI-powered analysis feature that provides personalized knowledge gap insights:
+
+- **With OpenAI API key**: Full AI-powered analysis with contextual recommendations
+- **Without API key**: Automatic fallback to statistical pattern-based analysis
+
+To enable AI insights:
+1. Get an API key from https://platform.openai.com/api-keys
+2. Add `OPENAI_API_KEY=sk-...` to your `.env` file locally
+3. Add the same variable in Vercel's Environment Variables settings (Settings → Environment Variables)
+4. Redeploy your application after adding environment variables
+
+**Note**: The app works perfectly fine without an API key - it will automatically use basic statistical analysis instead.
+
+See [VERCEL_TROUBLESHOOTING.md](./VERCEL_TROUBLESHOOTING.md) for detailed troubleshooting steps if AI insights aren't working in production.
 
 ## Development
 

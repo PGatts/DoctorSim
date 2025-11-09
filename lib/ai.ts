@@ -23,17 +23,19 @@ export interface AnalysisResult {
   hintsRequired: string[];
   recommendations: string[];
   confidenceScores: Record<string, number>;
+  analysisType?: 'ai' | 'basic';
 }
 
 export async function analyzeSessionWithAI(
   sessionData: SessionAnalysisData
-): Promise<AnalysisResult> {
+): Promise<AnalysisResult & { analysisType?: 'ai' | 'basic' }> {
   const apiKey = process.env.OPENAI_API_KEY;
   
   if (!apiKey) {
     // Fallback to basic analysis if no API key
-    console.log('No AI API key configured, using basic analysis');
-    return performBasicAnalysis(sessionData);
+    console.log('⚠️  No AI API key configured, using basic analysis');
+    console.log('To enable AI analysis, set OPENAI_API_KEY environment variable');
+    return { ...performBasicAnalysis(sessionData), analysisType: 'basic' };
   }
 
   const prompt = createAnalysisPrompt(sessionData);
@@ -41,15 +43,17 @@ export async function analyzeSessionWithAI(
   try {
     // OpenAI API call
     if (process.env.OPENAI_API_KEY) {
-      console.log('Attempting OpenAI analysis...');
-      return await analyzeWithOpenAI(prompt, sessionData);
+      console.log('🤖 Attempting OpenAI analysis with model: gpt-4o-mini');
+      const result = await analyzeWithOpenAI(prompt, sessionData);
+      console.log('✅ OpenAI analysis completed successfully');
+      return { ...result, analysisType: 'ai' };
     }
     
-    return performBasicAnalysis(sessionData);
+    return { ...performBasicAnalysis(sessionData), analysisType: 'basic' };
   } catch (error) {
-    console.error('AI analysis error, falling back to basic analysis:', error);
+    console.error('❌ AI analysis error, falling back to basic analysis:', error);
     // Always fall back to basic analysis on error
-    return performBasicAnalysis(sessionData);
+    return { ...performBasicAnalysis(sessionData), analysisType: 'basic' };
   }
 }
 
@@ -85,6 +89,8 @@ Please provide a JSON response with the following structure:
 }
 
 async function analyzeWithOpenAI(prompt: string, data: SessionAnalysisData): Promise<AnalysisResult> {
+  console.log('📤 Sending request to OpenAI API...');
+  
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -107,20 +113,23 @@ async function analyzeWithOpenAI(prompt: string, data: SessionAnalysisData): Pro
     })
   });
 
+  console.log(`📥 Received response from OpenAI (Status: ${response.status})`);
+  
   const result = await response.json();
   
   // Check for API errors
   if (!response.ok || result.error) {
-    console.error('OpenAI API error:', result.error || result);
-    throw new Error(result.error?.message || 'OpenAI API request failed');
+    console.error('❌ OpenAI API error:', JSON.stringify(result.error || result, null, 2));
+    throw new Error(result.error?.message || `OpenAI API request failed with status ${response.status}`);
   }
 
   // Check if response has expected structure
   if (!result.choices || !result.choices[0] || !result.choices[0].message) {
-    console.error('Unexpected OpenAI response format:', result);
+    console.error('❌ Unexpected OpenAI response format:', JSON.stringify(result, null, 2));
     throw new Error('Unexpected response format from OpenAI');
   }
 
+  console.log('✅ Successfully parsed OpenAI response');
   return JSON.parse(result.choices[0].message.content);
 }
 

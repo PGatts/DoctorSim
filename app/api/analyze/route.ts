@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
+      console.log('❌ Unauthorized analysis request - no session');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -15,6 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { sessionId } = await request.json();
+    console.log(`📊 Analysis requested for session: ${sessionId} by user: ${session.user.id}`);
     
     if (!sessionId) {
       return NextResponse.json(
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingAnalysis) {
+      console.log(`ℹ️  Analysis already exists for session: ${sessionId}`);
       return NextResponse.json({
         message: 'Analysis already exists',
         analysis: existingAnalysis
@@ -39,6 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch user responses for the session
+    console.log(`📥 Fetching responses for session: ${sessionId}`);
     const responses = await prisma.userResponse.findMany({
       where: {
         userId: session.user.id,
@@ -58,7 +62,10 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    console.log(`📦 Found ${responses.length} responses for session: ${sessionId}`);
+
     if (responses.length === 0) {
+      console.log(`⚠️  No responses found for session: ${sessionId}`);
       return NextResponse.json(
         { error: 'No responses found for this session' },
         { status: 404 }
@@ -81,8 +88,12 @@ export async function POST(request: NextRequest) {
       categories: [...new Set(responses.map(r => r.question.category))]
     };
 
+    console.log(`🔍 Starting analysis for ${analysisData.questionsAnswered.length} questions across ${analysisData.categories.length} categories`);
+
     // Perform AI analysis
     const analysisResult = await analyzeSessionWithAI(analysisData);
+
+    console.log(`✅ Analysis completed with type: ${analysisResult.analysisType || 'unknown'}`);
 
     // Save analysis to database
     const savedAnalysis = await prisma.analysisReport.create({
@@ -96,15 +107,18 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    console.log(`💾 Analysis saved to database for session: ${sessionId}`);
+
     return NextResponse.json({
       message: 'Analysis completed',
       analysis: savedAnalysis,
       result: analysisResult
     });
   } catch (error) {
-    console.error('Error analyzing session:', error);
+    console.error('❌ Error analyzing session:', error);
+    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
-      { error: 'Failed to analyze session' },
+      { error: 'Failed to analyze session', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
